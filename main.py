@@ -46,8 +46,10 @@ nnUNet_train 2d nnUNetTrainerV2 510 all --npz
 nnUNet_train 3d_fullres nnUNetTrainerV2 510 all --npz -c --cuda_device 1
 nnUNet_train 3d_lowres nnUNetTrainerV2 510 all --npz --cuda_device 0
 
-nnUNet_train 3d_cascade_fullres nnUNetTrainerV2CascadeFullRes 510 all --npz --cuda_device 0
+ing))) nnUNet_train 3d_fullres nnUNetTrainerV2_Loss_MSE 510 all # shape 안맞
 
+nnUNet_train 3d_cascade_fullres nnUNetTrainerV2CascadeFullRes 510 all --npz --cuda_device 0
+nnUNet train 3d_cascade_fullres nnUNetTrainerV2CascadeFullRes_focalLoss 510 0 --npz
 # predict
 (If RESULTS_FOLDER don't contain cv_niftis)
 nnUNet_determine_postprocessing -t 511 -m 2d # creating cv
@@ -67,7 +69,7 @@ nnUNet_ensemble -f FOLDER1 FOLDER2 ... -o OUTPUT_FOLDER -pp POSTPROCESSING_FILE
 
 # oncologist
 nnUNet_convert_decathlon_task -i media/ncc/Tasks/Task06_Lung_staple -output_task_id OUTPUT_TASK_ID
-nnUNet_plan_and_preprocess -t 106
+nnUNet_plan_and_preprocess -t 10
 nnUNet_train 3d_fullres nnUNetTrainerV2 106 0
 # model list = ['2d', '3d_lowres', '3d_fullres', '3d_cascade_fullres']
 
@@ -93,8 +95,10 @@ Note that the default behavior will change in a future release to error out if a
 At that point, setting error_if_nonfinite=false will be required to retain the old behavior.
 torch.nn.utils.clip_grad_norm_(self.network.parameters(), 12)
 
+# ============= training cmd ==================
+nnUNet_train 3d_fullres nnUNetTrainerV2_Loss_MSE 510 0 --cuda_device 1
 
-## GPU memory kill (GPU 1 memory initialize) ##
+## For GPU memory kill (GPU 1 memory initialize) ##
 sudo fuser -v /dev/nvidia*
 for i in $(sudo lsof /dev/nvidia1 | grep python | awk '{print $2}' | sort -u); do kill -9 $i; done
 
@@ -138,18 +142,20 @@ import nibabel as nib
 # path
 TASK_NAME = 'spleen_2.nii.gz'
 TASK_NAME_0 = 'spleen_2_0000.nii.gz'
+Task_name_npz = 'spleen_10.npz'
 
 cur_dir = os.getcwd()
 task_dir = os.path.join(cur_dir, 'media/ncc/Tasks/onlytest_spleen')
 # output_dir = os.path.join(cur_dir, 'OUTPUT_DIRECTORY/onlytest')
-output_dir = os.path.join(cur_dir, 'OUTPUT_DIRECTORY/onlytest29/509')
+output_dir = os.path.join(cur_dir, 'OUTPUT_DIRECTORY/510')
 
-PRED1_NAME = '3d_cascade'
-PRED2_NAME = '3d_cascade_tta'
+PRED1_NAME = '3dfulres_mcc'
+PRED2_NAME = 'fulres_topk'
 
 pred1 = os.path.join(output_dir, '{}/{}'.format(PRED1_NAME, TASK_NAME))
 pred2 = os.path.join(output_dir, '{}/{}'.format(PRED2_NAME, TASK_NAME))
-
+# pred1 = os.path.join(output_dir, '{}'.format(TASK_NAME))
+# pred2 = os.path.join(output_dir, '{}'.format(TASK_NAME))
 
 ts_image = os.path.join(task_dir, 'imagesTs/{}'.format(TASK_NAME_0))
 ts_label = os.path.join(task_dir, 'labelsTs/{}'.format(TASK_NAME))
@@ -194,26 +200,27 @@ plt.suptitle('Path : {}'.format(output_dir))
 plt.subplots_adjust(wspace=.1, hspace=.2)
 plt.show()
 
-## cv Visualization
+## cv Visualization 위에 먼저 실행
+
 
 IMG_NUM = 3
-IMG_RANGE = '0:5'
+RESULT_LEN_RAN = 45
 
-cv_dir = 'media/ncc/nnunet_trained_models/nnUNet/3d_fullres/Task106_Lung_staple/nnUNetTrainerV2__nnUNetPlansv2.1/'
+cv_dir = 'media/ncc/nnunet_trained_models/nnUNet/3d_fullres/Task509_Spleen_reloc/nnUNetTrainerV2__nnUNetPlansv2.1/'
 
-cv_raw_dir = os.path.join(cv_dir, 'cv_niftis_raw')
+cv_raw_dir = os.path.join(cv_dir, 'all/validation_raw') # validation_raw, cv_niftis_raw'
 cv_raw_list = os.listdir(cv_raw_dir)
 cv_raw_list.sort()
 cv_raw_name = cv_raw_list[IMG_NUM]
 cv_raw_img = np.array(nib.load(os.path.join(cv_raw_dir, cv_raw_name)).dataobj)
-cv_raw_img_range = np.array(nib.load(os.path.join(cv_raw_dir, cv_raw_name)).dataobj)[:, :, 4:9]
+cv_raw_img_range = np.array(nib.load(os.path.join(cv_raw_dir, cv_raw_name)).dataobj)[:, :, RESULT_LEN_RAN:RESULT_LEN_RAN + 5]
 
-cv_pp_dir = os.path.join(cv_dir, 'cv_niftis_postprocessed')
+cv_pp_dir = os.path.join(cv_dir, 'all/validation_raw_postprocessed') # validation_raw_postprocessed, cv_niftis_postprocessed
 cv_pp_list = os.listdir(cv_pp_dir)
 cv_pp_list.sort()
 cv_pp_name = cv_pp_list[IMG_NUM]
 cv_pp_img = np.array(nib.load(os.path.join(cv_pp_dir, cv_pp_name)).dataobj)
-cv_pp_img_range = np.array(nib.load(os.path.join(cv_pp_dir, cv_pp_name)).dataobj)[:, :, 4:9]
+cv_pp_img_range = np.array(nib.load(os.path.join(cv_pp_dir, cv_pp_name)).dataobj)[:, :, RESULT_LEN_RAN:RESULT_LEN_RAN + 5]
 
 
 print('CV Row Image Shape: {}'.format(cv_raw_name), cv_raw_img.shape)
@@ -225,15 +232,15 @@ max_cols = test_img.shape[2]
 fig, axes = plt.subplots(nrows=max_rows, ncols=max_cols, figsize=(20, 8))
 for idx in range(max_cols):
     axes[0, idx].axis("off")
-    axes[0, idx].set_title('Test Image' + str(idx + 1) + '({})'.format())
+    axes[0, idx].set_title('Test Image' + str(idx + 1))
     axes[0, idx].imshow(test_img[:, :, idx]) # , cmap="gray"
 for idx in range(max_cols):
     axes[1, idx].axis("off")
-    axes[1, idx].set_title('Test Label' + str(idx + 1))
+    axes[1, idx].set_title('cv_raw' + str(idx + 1))
     axes[1, idx].imshow(cv_raw_img_range[:, :, idx])
 for idx in range(max_cols):
     axes[2, idx].axis("off")
-    axes[2, idx].set_title('Predicted Label' + str(idx + 1))
+    axes[2, idx].set_title('cv_pp_img' + str(idx + 1))
     axes[2, idx].imshow(cv_pp_img_range[:, :, idx])
 
 plt.subplots_adjust(wspace=.1, hspace=.1)
@@ -320,14 +327,6 @@ for idx in range(max_cols):
 
 plt.subplots_adjust(wspace=.1, hspace=.2)
 plt.show()
-##
-'''
-# lately code
-nnUNet_train 2d nnUNetTrainerV2 5 1 --npz
-
-runtime 6/23 10:00
-nnUNet_download_pretrained_model Task005_Prostate
-'''
 
 ## Task dataset.json
 import os
@@ -359,23 +358,32 @@ for i in range(len(imagesTs_list)):
     print('"./imagesTs/','{}'.format(imagesTs_list[i]), '",' ,sep='')
 
 
-## excise pickle
-import numpy as np
-import os
+## excise
 
-SPLEEN_DIR = 'media/ncc/Tasks/Task09_Spleen/'
-cur_dir = os.getcwd()
-spl_dir = os.path.join(cur_dir, SPLEEN_DIR)
+import torch
+from torch import nn, Tensor
 
-imagesTr_dir = os.path.join(spl_dir, 'imagesTr')
-imagesTr_list = os.listdir(imagesTr_dir)
-imagesTr_list.sort()
+class Custom_MSELoss(nn.MSELoss):
 
-sample = np.random.choice(len(imagesTr_list), 10)
-print(sample)
-sample_list = []
+    def forward(self, input: Tensor, target: Tensor) -> Tensor:
+        # if len(target.shape) == len(input.shape):
+        #     assert target.shape[1] == 1
+        #     target = target[:, 0]
+        return super().forward(input, target)
 
-for i in sample:
-    sample_list.append(imagesTr_list[i])
-sample_list.sort()
-print(sample_list)
+loss = Custom_MSELoss()
+
+
+# input = test_label[:,:,0]
+input_tensor = torch.from_numpy(test_label)
+input_flat = torch.flatten(input_tensor)
+input_reshape = input_flat.reshape(5,512,512)
+
+# target = pr_label1[:,:,0]
+target_tensor = Tensor(pr_label1)
+target_flat = torch.flatten(target_tensor)
+target_reshape = target_flat.reshape(5,512,512)
+
+output = loss(input_reshape, target_reshape)
+output.backward()
+

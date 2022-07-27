@@ -11,11 +11,13 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
+from typing import Optional
+
 import zipfile
 from time import time
 
 import requests
-from batchgenerators.utilities.file_and_folder_operations import join, isfile
+from batchgenerators.utilities.file_and_folder_operations import join, isfile, isdir
 
 from nnunet.paths import network_training_output_dir
 
@@ -171,7 +173,7 @@ def get_available_models():
         },
         "Task082_BraTS2020": {
             'description': "Brain tumor segmentation challenge 2020 (BraTS)\n"
-                           "Segmentation targets are 0: background, 1: edema, 2: enhancing tumor, 3: necrosis\n"
+                           "Segmentation targets are 0: background, 1: edema, 2: necrosis, 3: enhancing tumor\n"
                            "Input modalities are 0: T1, 1: T1ce, 2: T2, 3: FLAIR (MRI images)\n"
                            "Also see https://www.med.upenn.edu/cbica/brats2020/",
             'url': (
@@ -231,6 +233,19 @@ def print_available_pretrained_models():
         print('')
         print(m)
         print(av_models[m]['description'])
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--export', help="Specify the folder name for saving the json file.", required=False)
+    args = parser.parse_args()
+    json_output_dir = args.export
+    if json_output_dir:
+        import json
+        if isdir(json_output_dir):
+            with open(args.export + '/available_models.json', 'w', encoding='utf8') as json_file:
+                json.dump(av_models, json_file, indent=1)
+            print("Data successfully exported to", join(json_output_dir, 'available_models.json'))
+        else:
+            print("Please specify a folder path.")
 
 
 def download_and_install_pretrained_model_by_name(taskname):
@@ -264,15 +279,7 @@ def download_and_install_from_url(url):
     tempfile = join(home, '.nnunetdownload_%s' % str(random_number))
 
     try:
-        with open(tempfile, 'wb') as f:
-            with requests.get(url, stream=True) as r:
-                r.raise_for_status()
-                for chunk in r.iter_content(chunk_size=8192 * 16):
-                    # If you have chunk encoded response uncomment if
-                    # and set chunk_size parameter to None.
-                    # if chunk:
-                    f.write(chunk)
-
+        download_file(url=url, local_filename=tempfile, chunk_size=8192 * 16)
         print("Download finished. Extracting...")
         install_model_from_zip_file(tempfile)
         print("Done")
@@ -283,13 +290,13 @@ def download_and_install_from_url(url):
             os.remove(tempfile)
 
 
-def download_file(url, local_filename):
+def download_file(url: str, local_filename: str, chunk_size: Optional[int] = None) -> str:
     # borrowed from https://stackoverflow.com/questions/16694907/download-large-file-in-python-with-requests
     # NOTE the stream=True parameter below
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         with open(local_filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=None):
+            for chunk in r.iter_content(chunk_size=chunk_size):
                 # If you have chunk encoded response uncomment if
                 # and set chunk_size parameter to None.
                 #if chunk:

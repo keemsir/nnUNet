@@ -89,9 +89,13 @@ def main():
                         help='path to nnU-Net checkpoint file to be used as pretrained model (use .model '
                              'file, for example model_final_checkpoint.model). Will only be used when actually training. '
                              'Optional. Beta. Use with caution.')
+    parser.add_argument("--cuda_device", required=False, default="0", help="Allocate memory to GPU")
 
     args = parser.parse_args()
 
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
+    
     task = args.task
     fold = args.fold
     network = args.network
